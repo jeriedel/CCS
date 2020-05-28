@@ -1,0 +1,19 @@
+QFrame {
+    background-color: #757575;
+}
+
+QLabel {
+    color: white;
+    font-size: 15;
+    font-weight: bold;
+}
+
+QTableView {
+    background-color: #757575;
+    color: white;
+}
+
+QHeaderView::section {
+    background-color: #424242;
+    color: white;
+}
