@@ -1,21 +1,24 @@
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
-from PyQt5.QtGui import QPalette, QRegExpValidator
+from PyQt5.QtGui import QRegExpValidator
 
 import os
+import re
+from functools import partial
 import pandas as pd
 import numpy as np
-from collections import namedtuple
-from functools import partial
 import ccs.synapt as synapt
 import ccs.imob as imob
 import ccs.drifttime as drifttime
+from helper.fileloader import FileLoader, ImobFileLoader
+from helper.correction import  correction
 from error import InvalidForm, NotDirectory
 
 class Overview(QFrame):
     ccs_synapt_success = pyqtSignal(dict, dict, list)
     ccs_imob_success   = pyqtSignal(pd.DataFrame, pd.DataFrame, list)
     drift_success      = pyqtSignal(tuple)
+    ms_success         = pyqtSignal(pd.DataFrame)
 
     def __init__(self, project, *args, **kwargs):
         super(Overview, self).__init__(*args, **kwargs)
@@ -28,12 +31,17 @@ class Overview(QFrame):
             self.__set_default_values_imob()
             self.__init_ui_imob()
             self.project = 'imob'
-        else:
+        elif project == 'drift':
             self.__set_default_values_drift()
             self.__init_ui_drift()
             self.project = 'drift'
+        
+        elif project == 'ms':
+            self.__init_ui_ms()
+            self.__set_default_values_ms()
+            self.project = 'ms'
 
-        self.setStyleSheet(open("QSS/overview.qss").read())
+        self.setStyleSheet(open("qss/overview.qss").read())
 
     def __set_default_values_synapt(self):
         self.base_dir   = None
@@ -61,7 +69,13 @@ class Overview(QFrame):
         self.scaling        = "0.1"
         self.drift_gates    = None
         self.mass_gates     = None
-        self.project        = "0" 
+        self.project        = "0"
+        
+    def __set_default_values_ms(self):
+        self.ftype  = "XY File"
+        self.file   = None
+        self.xcol   = "1"
+        self.ycol   = "2"
 
     def __init_ui_synapt(self):
         vbox        = QVBoxLayout(self)
@@ -69,7 +83,7 @@ class Overview(QFrame):
         hbox        = QHBoxLayout(header)
         title       = QLabel("Project Selection Synapt")
 
-        header.setStyleSheet(open("QSS/header.qss").read())
+        header.setStyleSheet(open("qss/header.qss").read())
         hbox.setAlignment(title, Qt.AlignCenter)
         hbox.addWidget(title)
 
@@ -159,7 +173,7 @@ class Overview(QFrame):
         hbox        = QHBoxLayout(header)
         title       = QLabel("Project Selection Imob")
 
-        header.setStyleSheet(open("QSS/header.qss").read())
+        header.setStyleSheet(open("qss/header.qss").read())
         hbox.setAlignment(title, Qt.AlignCenter)
         hbox.addWidget(title)
 
@@ -253,7 +267,7 @@ class Overview(QFrame):
         hbox        = QHBoxLayout(header)
         title       = QLabel("Drift Time Scan")
 
-        header.setStyleSheet(open("QSS/header.qss").read())
+        header.setStyleSheet(open("qss/header.qss").read())
         hbox.setAlignment(title, Qt.AlignCenter)
         hbox.addWidget(title)
 
@@ -325,15 +339,80 @@ class Overview(QFrame):
         vbox.addWidget(header)
         vbox.addWidget(form)
         vbox.addWidget(button_run)
-        self.show()
+        
+    def __init_ui_ms(self):
+        vbox        = QVBoxLayout(self)
+        header      = QWidget()
+        hbox        = QHBoxLayout(header)
+        title       = QLabel("Visualize MS spectrum")
+    
+        header.setStyleSheet(open("qss/header.qss").read())
+        hbox.setAlignment(title, Qt.AlignCenter)
+        hbox.addWidget(title)
+    
+        form        = QWidget()
+        form_layout = QFormLayout(form)
+        form_layout.setFormAlignment(Qt.AlignLeft)
+        form_layout.setLabelAlignment(Qt.AlignLeft)
+        
+        file_type   = QLabel("File Type")
+        file        = QLabel("File")
+        col_x       = QLabel("Col. No. Wavenumber")
+        col_y       = QLabel("Col. No. Intensity")
+        
+        self.cb_file        = QComboBox()
+        self.file_edit      = QLineEdit()
+        self.browse         = QPushButton("Browse")
+        self.col_no_x       = QLineEdit()
+        self.col_no_y       = QLineEdit()
 
+        browse_group        = QFrame()
+        browse_group_lay    = QHBoxLayout(browse_group)
+        browse_group_lay.setContentsMargins(0,0,0,0)
+        self.browse.setStyleSheet("""
+            font-size: 12pt;
+            min-height: 20px;
+            min-width: 100px;
+        """)
+        
+        browse_group_lay.addWidget(self.file_edit)
+        browse_group_lay.addWidget(self.browse)
+        
+        self.cb_file.addItem("XY File")
+        self.cb_file.addItem("XY File with correction")
+        self.cb_file.addItem("Imob File")
+        self.col_no_x.setText("1")
+        self.col_no_y.setText("2")
+        
+        IntValidator = QRegExpValidator(QRegExp(r"[0-9]+"), self)
+        self.col_no_x.setValidator(IntValidator)
+        self.col_no_y.setValidator(IntValidator)
+
+        form_layout.addRow(file_type, self.cb_file)
+        form_layout.addRow(file, browse_group)
+        form_layout.addRow(col_x, self.col_no_x)
+        form_layout.addRow(col_y, self.col_no_y)
+        
+        self.cb_file.currentTextChanged.connect(self.__file_type_changed)
+        self.browse.clicked.connect(partial(self.__create_file_dialog, False, True))
+        self.file_edit.textChanged.connect(self.__file_changed)
+        self.col_no_x.textChanged.connect(self.__xcol_changed)
+        self.col_no_y.textChanged.connect(self.__ycol_changed)
+
+        button_run = QPushButton("Run")
+        button_run.clicked.connect(self.__run_calculation)
+        
+        vbox.addWidget(header)
+        vbox.addWidget(form)
+        vbox.addWidget(button_run)
+        
     def __create_file_dialog(self, dir_only=False, file_only=False):
         home = os.path.expanduser('~')
         if dir_only:
             directory = QFileDialog.getExistingDirectory(self, 'Select directory', home)
             self.base_edit.setText(directory)
         elif file_only:
-            h5file = QFileDialog.getOpenFileName(self, 'Select file', home, "Files (*.h5 *.hdf)")[0]
+            h5file = QFileDialog.getOpenFileName(self, 'Select file', home, "Files (*.h5 *.hdf *.txt *.dat)")[0]
             self.file_edit.setText(h5file)
         else:
             return 
@@ -375,9 +454,15 @@ class Overview(QFrame):
 
     def __populate_results_table(self, ccs):
         print(ccs)
+        
+    def __file_type_changed(self, text):
+        self.ftype = text
 
     def __file_changed(self, text):
-        self.h5file = text
+        if not self.project == 'ms':
+            self.h5file = text
+        else:
+            self.file = text
 
     def __dev_changed(self, text):
         self.dev = text
@@ -405,14 +490,22 @@ class Overview(QFrame):
 
     def __mass_gates_changed(self, text):
         self.mass_gates = self.mass_gates_e.text()
+        
+    def __xcol_changed(self, text):
+        self.xcol = text
+        
+    def __ycol_changed(self, text):
+        self.ycol = text
 
     def __check_form_input(self):
         if self.project == 'synapt':
             self.__check_form_input_synapt()
         elif self.project == 'imob':
             self.__check_form_input_imob()
-        else:
+        elif self.project == 'drift':
             self.__check_form_input_drift()
+        elif self.project == 'ms':
+            self.__check_form_input_ms()
 
     def __check_form_input_synapt(self):
         try:
@@ -497,8 +590,25 @@ class Overview(QFrame):
                 self.drift_gates = drift_gates
                 
         except Exception as e:
-            print(e)
+            raise InvalidForm
+    
+    def __check_form_input_ms(self):
+        try:
+            if not os.path.isfile(self.file):
+                raise Exception
             
+            if re.match("XY", self.ftype):
+                if self.xcol is None:
+                    raise Exception
+                if self.ycol is None:
+                    raise Exception
+                
+                self.xcol = int(self.xcol)
+                self.ycol = int(self.ycol)
+                
+        except Exception:
+            raise InvalidForm("")
+                
     def __run_calculation(self):
         try:
             self.__check_form_input()
@@ -521,16 +631,26 @@ class Overview(QFrame):
                     self.gas
                     )
                 self.ccs_imob_success.emit(imms_data, coeff, results)
-            else:
+            elif self.project == 'drift':
                 data = drifttime.analysis_interface(
                     self.h5file,
                     self.minmz,
                     self.maxmz,
                     self.scaling,
                     self.drift_gates,
-                    self.mass_gates
-                )
+                    self.mass_gates)
                 self.drift_success.emit(data)
+            
+            elif self.project == 'ms':
+                if self.ftype == "XY File":
+                    data = FileLoader.getFileAsDataFrame(self.file, cols=[self.xcol - 1, self.ycol - 1])
+                    self.ms_success.emit(data)
+                elif self.ftype == "XY File with correction":
+                    data = FileLoader.getFileAsDataFrame(self.file, cols=[self.xcol - 1, self.ycol - 1])
+                    data.iloc[:,0] = data.iloc[:,0].apply(correction)
+                    self.ms_success.emit(data)
+                else:
+                    pass
                 
         except InvalidForm as form_error:
             print(form_error)

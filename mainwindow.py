@@ -32,15 +32,19 @@ class MainWindow(QMainWindow):
 
     def __set_menu(self):
         # Define all actions in menu
-        quit_app   = QAction('& Quit', self)
-        synapt     = QAction('& Synapt', self)
-        imob       = QAction('& Imob', self)
-        drift      = QAction('& Drift Time Scan', self)
+        quit_app   = QAction('&Quit', self)
+        synapt     = QAction('&Synapt', self)
+        imob       = QAction('&Imob', self)
+        drift      = QAction('&Drift Time Scan', self)
+        ms         = QAction('&Visualize MS', self)
+        
         # Add signals
         quit_app.triggered.connect(qApp.quit)
         synapt.triggered.connect(lambda: self.__handle_project_change('synapt'))
         imob.triggered.connect(lambda: self.__handle_project_change('imob'))
         drift.triggered.connect(lambda: self.__handle_project_change('drift'))
+        ms.triggered.connect(lambda : self.__handle_project_change('ms'))
+        
         # Add menu tabs
         main_menu = self.menuBar()
         ccs_menu  = main_menu.addMenu('&CSS')
@@ -50,6 +54,7 @@ class MainWindow(QMainWindow):
         project.addAction(synapt)
         project.addAction(imob)
         project.addAction(drift)
+        project.addAction(ms)
 
     def __plot_results(self, imms_data, coeff, results):
         if self.project == 'synapt':
@@ -66,6 +71,10 @@ class MainWindow(QMainWindow):
     def __plot_results_drift(self, res):
             self.graph.clear_plot(method='drift')
             self.graph.plot_drift_time_scope(res)
+        
+    def __plot_results_ms(self, data):
+        self.graph.clear_plot(method='ms')
+        self.graph.plot_ms(data)
 
     def __plot_fit_synapt(self, imms_data, coeffs):
         for key,  coeff in coeffs.items():
@@ -157,9 +166,12 @@ class MainWindow(QMainWindow):
         elif project == 'imob':
             self.project = 'imob'
             self.__render_imob_dialog()
-        else:
+        elif project == 'drift':
             self.project == 'drift'
             self.__render_drifttime_dialog()
+        elif project == 'ms':
+            self.project = 'ms'
+            self.__render_ms_dialog()
 
     def __render_synapt_dialog(self):
         central     = QFrame()
@@ -255,4 +267,25 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         
         self.params.drift_success.connect(self.__plot_results_drift)
+        self.show()
+        
+    def __render_ms_dialog(self):
+        central = QFrame()
+        hbox = QHBoxLayout(central)
+        hbox.setContentsMargins(0, 0, 0, 0)
+
+        # Define components visible in main layout
+        self.params = Overview('ms')
+        self.graph = Canvas(project='ms')
+
+        # Add splitter for main layout
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(self.params)
+        splitter.addWidget(self.graph)
+
+        splitter.setStretchFactor(1, 10)
+        hbox.addWidget(splitter)
+
+        self.setCentralWidget(central)
+        self.params.ms_success.connect(self.__plot_results_ms)
         self.show()

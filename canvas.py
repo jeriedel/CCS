@@ -18,22 +18,24 @@ mpl.rcParams['ytick.color']         = gray
 mpl.rcParams['axes.edgecolor']      = gray
 
 class Canvas(QFrame):
-    def __init__(self, project='ccs'):
-        super().__init__()
+    def __init__(self, project='ccs', *args, **kwargs):
+        super(Canvas, self).__init__(*args, **kwargs)
 
         if project == 'ccs':
             self.__init_ui_ccs()
         elif project == 'drift':
             self.__init_ui_drift()
+        elif project == 'ms':
+            self.__init_ui_ms()
 
-        self.setStyleSheet(open("QSS/canvas.qss").read())
+        self.setStyleSheet(open("qss/canvas.qss").read())
     
     def __init_ui_ccs(self):
         vbox = QVBoxLayout(self)
         self.figure = Figure(constrained_layout=True)
         self.canvas = FigureCanvas(self.figure)
         self.axes   = self.canvas.figure.subplots(nrows=2, ncols=1)
-        self.__set_default_plot_settings_ccs()
+        self.__set_default_plot_settings()
 
         vbox.addWidget(self.canvas)
 
@@ -51,6 +53,15 @@ class Canvas(QFrame):
 
         self.__set_default_plot_settings_drift()
         self.vbox.addWidget(self.canvas)
+        
+    def __init_ui_ms(self):
+        self.vbox = QVBoxLayout(self)
+        self.figure = Figure()
+        self.canvas = FigureCanvas(self.figure)
+        self.axes   = self.figure.subplots(nrows=1, ncols=1)
+        self.axes   = [self.axes]
+        self.__set_default_plot_settings(method='ms')
+        self.vbox.addWidget(self.canvas)
 
     def __set_default_plot_settings_drift(self):
         for ax in self.axes:
@@ -60,34 +71,40 @@ class Canvas(QFrame):
         self.figure.patch.set_facecolor("None")
         self.canvas.setStyleSheet("background-color:transparent")
 
-    def __set_default_plot_settings_ccs(self):
+    def __set_default_plot_settings(self, method='ccs'):
         for ax in self.axes:
             ax.patch.set_facecolor('white')
             ax.patch.set_alpha(0)
-
-        self.figure.patch.set_facecolor("None")
-        self.canvas.setStyleSheet("background-color:transparent")
-        self.axes[0].set_xlabel("Drift time [ms]")
-        self.axes[0].set_ylabel("Intensity [a.u]")
-        self.axes[0].set_title("Extracted Peaks")
-
-        self.axes[1].set_xlabel("$ Drift Voltage^{-1} [V]$")
-        self.axes[1].set_ylabel("Drift time [ms]")
-
-    def clear_plot(self, method='ccs'):
-        self.axes[0].cla()
-        self.axes[1].cla()
         
         if method == 'ccs':
-            self.__set_default_plot_settings_ccs()
+            self.figure.patch.set_facecolor("None")
+            self.canvas.setStyleSheet("background-color:transparent")
+            self.axes[0].set_xlabel("Drift time [ms]")
+            self.axes[0].set_ylabel("Intensity [a.u]")
+            self.axes[0].set_title("Extracted Peaks")
+
+            self.axes[1].set_xlabel("$ Drift Voltage^{-1} [V]$")
+            self.axes[1].set_ylabel("Drift time [ms]")
         else:
+            self.figure.patch.set_facecolor("None")
+            self.canvas.setStyleSheet("background-color:transparent")
+            self.axes[0].set_xlabel("Wavenumber [cm$^{-1}$]")
+            self.axes[0].set_ylabel("Intensity [a.u]")
+            self.axes[0].set_title("Mass spectrum")
+
+    def clear_plot(self, method='ccs'):
+        for ax in self.axes:
+            ax.cla()
+        if method == 'ccs':
+            self.__set_default_plot_settings()
+        elif method == 'drift':
             try:
                 self.colorbar.remove()
             except Exception:
                 pass
-            
-            self.axes[2].cla()
             self.__set_default_plot_settings_drift()
+        elif method == 'ms':
+            self.__set_default_plot_settings(method='ms')
 
     def plot_fit(self, x, y, method='full'):
         if method == "full":
@@ -105,6 +122,12 @@ class Canvas(QFrame):
         elif method == "scatter":
             self.axes[1].scatter(x,y, gid='exp')
 
+        self.canvas.draw()
+        
+    def plot_ms(self, df):
+        x = df.iloc[:,0]
+        y = df.iloc[:,1]
+        self.axes[0].plot(x,y)
         self.canvas.draw()
         
     def plot_drift_time_scope(self, res):

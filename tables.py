@@ -19,7 +19,7 @@ class TableResults(QFrame):
         fit_header.setSectionResizeMode(QHeaderView.Stretch)
 
         self.__init_tables()
-        self.setStyleSheet(open("QSS/tables.qss").read())
+        self.setStyleSheet(open("qss/tables.qss").read())
 
     def __init_tables(self):
         table_area_layout   = QVBoxLayout(self)
