@@ -5,7 +5,7 @@ from PyQt5 import QtCore
 class PandasModel(QtCore.QAbstractTableModel):
     def __init__(self, data, parent=None):
          super(PandasModel, self).__init__()
-         self._data = data.round(1)
+         self._data = data.round(4)
          self.header_labels = [str(i+1) for i in range(data.shape[1])]
 
     def rowCount(self, parent=None):
@@ -32,7 +32,7 @@ class ArrayModel(QtCore.QAbstractTableModel):
             raise Exception
         else:
             self._data = data.reshape((1, len(data)))
-            self._data = np.around(self._data, 2)
+            self._data = np.around(self._data, 4)
             self.header_labels = [str(i+1) for i in range(self._data.shape[1])]
 
     def rowCount(self, parent=None):

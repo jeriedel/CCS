@@ -137,10 +137,10 @@ class MainWindow(QMainWindow):
 
     def __populate_tables_imob(self, coeffs, results):
         _, regress, ccs_results = results[0]
-        _, _, R, P, std_err = regress
+        _, _, slope, intercept, R, P, std_err = regress
 
         ccs_results = np.asarray(ccs_results)
-        fit_params  = np.asarray([R, P, std_err])
+        fit_params  = np.asarray([slope, intercept, R, P, std_err])
 
         pandas_model = PandasModel(coeffs)
         pandas_model.header_labels = ['A', 'mu', 'sigma']
@@ -149,8 +149,7 @@ class MainWindow(QMainWindow):
         ccs_model.header_labels = ['ccs', 'ccs corr.', 'error']
 
         fit_model    = FitModel(fit_params) 
-        fit_model.header_labels = ['R', 'P', 'std err.']
-
+        fit_model.header_labels = ['slope', 'intercept', 'R', 'P', 'std err.']
 
         self.table_area.coeffs_table.setModel(pandas_model)
         self.table_area.ccs_table.setModel(ccs_model)

@@ -83,7 +83,7 @@ class Canvas(QFrame):
             self.axes[0].set_ylabel("Intensity [a.u]")
             self.axes[0].set_title("Extracted Peaks")
 
-            self.axes[1].set_xlabel("$ Drift Voltage^{-1} [V]$")
+            self.axes[1].set_xlabel("Drift Voltage $[V^{-1}]$")
             self.axes[1].set_ylabel("Drift time [ms]")
         else:
             self.figure.patch.set_facecolor("None")

@@ -11,16 +11,6 @@ from scipy.stats import linregress
 
 
 def optimize_coefficients_gaussian(data, N, maxfev=100):
-    """
-    Calculate optimized coefficients based on the number of gaussian functions
-    N: int
-        Number of gaussian functions used for deconvolution
-    data: pandas DataFrame
-        Dataframe, with labeled DataSet
-    Returns:
-    coeff: dict
-        Dictionary of coefficients saved for each CCS key
-    """
     coeff = {}
     x = data.index
     for data_set in data.iteritems():
@@ -124,7 +114,7 @@ def fit_gaussian(data):
 
 def calculate_ccs(data, coeff, environment_conditions, measurement_params):
     Experimental = namedtuple('Experimental', ['voltage', 'drift_time'])
-    Regress = namedtuple('Regress', ['voltage', 'fitted', 'R', 'P', 'std_err'])
+    Regress = namedtuple('Regress', ['voltage', 'fitted', 'slope', 'intercept','R', 'P', 'std_err'])
     CCS = namedtuple('CCS', ['ccs', 'ccs_corr', 'error'])
 
     voltage, temperature, pressure = environment_conditions
@@ -158,7 +148,7 @@ def calculate_ccs(data, coeff, environment_conditions, measurement_params):
     error        = (std_err / slope ) * ccs
 
     exp = Experimental(inv_voltage, drift_times)
-    reg = Regress(inv_voltage, slope*inv_voltage + intercept, r_value, p_value, std_err)
+    reg = Regress(inv_voltage, slope*inv_voltage + intercept, slope, intercept, r_value, p_value, std_err)
     ccs = CCS(ccs, ccs_corr, error)
 
     return [(exp, reg, ccs)]
