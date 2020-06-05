@@ -18,8 +18,10 @@ def optimize_coefficients_gaussian(data, N, maxfev=100):
         y = np.asarray(y)
         A = np.max(y)
         median = x[np.argmax(y)]
-        params = [[A, median, 1e-2] for i in range(N)]
-
+        idx    = np.where(y >= 0.5*A)[0]
+        fwhm   = x[idx[-1]] - x[idx[0]]
+        sigma  = fwhm / 2*np.sqrt(2*np.log(2)) 
+        params = [[A, median, sigma] for i in range(N)]
         coeff[set_name], cov = curve_fit(normal_distribution, x, y, p0=params)
 
     coeff = pd.DataFrame.from_dict(coeff).transpose()
@@ -52,8 +54,8 @@ def normal_distribution(x, *args):
 
     return accumulated 
 
-def cancel_noise(series, limit=0.05):
-    series = series.where(series > limit*np.max(series), 0)
+def cancel_noise(series, threshold=0.005):
+    series = series.where(series > threshold, 0)
     return series
 
 def load_hdf_file(path):
@@ -135,6 +137,9 @@ def calculate_ccs(data, coeff, environment_conditions, measurement_params):
 
     drift_times = np.asarray(coeff.iloc[:,1])
 
+    if len(drift_times) < len(voltage):
+        voltage = voltage[:len(drift_times)]
+
     inv_voltage =  1 / voltage
 
     slope, intercept, r_value, p_value, std_err = linregress(inv_voltage, drift_times)
@@ -186,10 +191,10 @@ def visualize_reg_fit(x, my, ry):
     plt.scatter(x, ry)
     plt.show()
 
-def analysis_interface(path2file, dev, mz, z, ld, gas):
+def analysis_interface(path2file, dev, mz, z, ld, gas, threshold=0.005):
     h5file      = load_hdf_file(path2file)
     data        = get_xy_data(h5file)
-    data        = data.apply(cancel_noise, limit=0.05)
+    data        = data.apply(cancel_noise, threshold=threshold)
 
     measurement_params = namedtuple('Experimental', ['mz', 'z', 'DriftTube', 'Gas'])
     measurement_params = measurement_params(mz, z, ld, gas)
@@ -201,35 +206,3 @@ def analysis_interface(path2file, dev, mz, z, ld, gas):
     results = calculate_ccs(data, coeff, environment_conditions, measurement_params)
 
     return data, coeff, results
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--file", type=str, default=None)
-    # dev = drift end voltage
-    parser.add_argument("--dev", type=int, default=190)
-    # m over z 
-    parser.add_argument("--mz", type=float)
-    # charge
-    parser.add_argument("--charge", type=int, default=1)
-    # length drift tube
-    parser.add_argument("--ld", type=float, default=160.55)
-    parser.add_argument("--gas", type=str, default='He')
-
-
-    # Analysis routine
-    args        = vars(parser.parse_args())
-    h5file      = load_hdf_file(args['file'])
-    data        = get_xy_data(h5file)
-    data        = data.apply(cancel_noise, limit=0.05)
-
-    measurement_params = namedtuple('Experimental', ['mz', 'z', 'DriftTube', 'Gas'])
-    measurement_params = measurement_params(args['mz'], args['charge'], args['ld'], args['gas'])
-
-    environment_conditions = extract_voltage_temp_pressure(h5file, args['dev'])
-
-    coeff = fit_gaussian(data)
-    
-    calculate_ccs(data, coeff, environment_conditions, measurement_params)
-
-if __name__ == '__main__':
-    main()
