@@ -1,61 +1,50 @@
 import os
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py as h5
 import pandas as pd
-import argparse
 import re
 from collections import namedtuple, OrderedDict
 from scipy.optimize import curve_fit
 from scipy.stats import linregress
+from scipy.signal import lfilter
 
-
-def optimize_coefficients_gaussian(data, N, maxfev=100):
+def optimize_coefficients_gaussian(data, N):
     coeff = {}
     x = data.index
     for data_set in data.iteritems():
         set_name, y = data_set
         y = np.asarray(y)
         A = np.max(y)
-        median = x[np.argmax(y)]
-        idx    = np.where(y >= 0.5*A)[0]
-        fwhm   = x[idx[-1]] - x[idx[0]]
-        sigma  = fwhm / 2*np.sqrt(2*np.log(2)) 
-        params = [[A, median, sigma] for i in range(N)]
+        median  = x[np.argmax(y)]
+        idx     = np.where(y >= 0.5*A)[0]
+        fwhm    = x[idx[-1]] - x[idx[0]]
+        sigma   = fwhm / 2*np.sqrt(2*np.log(2))
+        off     = np.mean(y)
+        params  = [[A, median, sigma, off] for i in range(N)]
         coeff[set_name], cov = curve_fit(normal_distribution, x, y, p0=params)
 
     coeff = pd.DataFrame.from_dict(coeff).transpose()
     return coeff
 
 def normal_distribution(x, *args):
-    """
-    Accumulated sum of N gaussian functions depending on the number of
-    input elements in the list
-
-    params: list
-        List of parameters for normal distribution. 
-        The normal distribution has three variables, A, mu and sigma.
-        For a n-dimensional generalization, provide a list with 3*N parameters.
-        N is the number of gaussian functions used for approximation
-    """
-    # Textbook normal distribution
-    trial_func = lambda x, A, mu, sigma: A * (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(-1 * (x - mu)**2 / ( 2 * sigma ** 2))
-    
-    #Accumulated sum of values from the different gaussian functions
+    trial_func = lambda x, A, mu, sigma, off: A * (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(-1 * (x - mu)**2 / ( 2 * sigma ** 2)) + off
     accumulated = np.zeros(len(x))
-    # converts args to numpy array 
     params = np.asarray(args)
-    params = np.reshape(params, (-1, 3))
+    params = np.reshape(params, (-1, 4))
     
-    # generate y-data for multiple gaussians depending on input size
     for set in params:
-        y = trial_func(x, set[0], set[1], set[2])
+        y = trial_func(x, set[0], set[1], set[2], set[3])
         accumulated += y
 
     return accumulated 
 
-def cancel_noise(series, threshold=0.005):
-    series = series.where(series > threshold, 0)
+def cancel_noise(series):
+    n = 15
+    b = [1 / n] * n
+    a = 1
+    series = lfilter(b, a, series)
     return series
 
 def load_hdf_file(path):
@@ -103,8 +92,6 @@ def extract_voltage_temp_pressure(h5file, dev=190):
 
     temperature = h5file['/Traces/EMB-PT100/Chan_0/DataSet_0']
     temperature = np.asarray(temperature)[0]
-
-    # Contains pressure in mbar?
     pressure = h5file['Traces/PR4000/Chan_1/DataSet_0']
     pressure = np.asarray(pressure)[0]
 
@@ -191,18 +178,20 @@ def visualize_reg_fit(x, my, ry):
     plt.scatter(x, ry)
     plt.show()
 
-def analysis_interface(path2file, dev, mz, z, ld, gas, threshold=0.005):
+def analysis_interface(path2file, dev, mz, z, ld, gas, traces=None):
     h5file      = load_hdf_file(path2file)
     data        = get_xy_data(h5file)
-    data        = data.apply(cancel_noise, threshold=threshold)
+    data        = data.apply(cancel_noise)
+
+    if traces is not None:
+        try:
+            data = data.iloc[:, np.array(traces) - 1]
+        except:
+            print("Input range is not valid")
 
     measurement_params = namedtuple('Experimental', ['mz', 'z', 'DriftTube', 'Gas'])
     measurement_params = measurement_params(mz, z, ld, gas)
-
     environment_conditions = extract_voltage_temp_pressure(h5file, dev)
-
-    coeff = fit_gaussian(data)
-    
+    coeff   = fit_gaussian(data)
     results = calculate_ccs(data, coeff, environment_conditions, measurement_params)
-
     return data, coeff, results

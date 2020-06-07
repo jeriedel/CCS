@@ -3,8 +3,8 @@ from PyQt5.QtCore import *
 from overview import Overview
 from canvas import Canvas
 from tables import TableResults
-import matplotlib.pyplot as plt
-from ccs.synapt import normal_distribution
+import ccs.synapt as synapt
+import ccs.imob as imob
 from models import PandasModel, CcsModel, FitModel
 import numpy as np
 import pandas as pd
@@ -81,7 +81,7 @@ class MainWindow(QMainWindow):
             temp = imms_data[key]
             x = temp['Time'].to_numpy()
             y = temp['Intensity'].to_numpy()
-            fitted = normal_distribution(x, coeff)
+            fitted = synapt.normal_distribution(x, coeff)
             self.graph.plot_fit(x, y)
             self.graph.plot_fit(x, fitted, method='dashed')
 
@@ -94,7 +94,7 @@ class MainWindow(QMainWindow):
         coeffs = coeffs.to_numpy()
 
         for coeff in coeffs: 
-            fitted = normal_distribution(time, coeff)
+            fitted = imob.normal_distribution(time, coeff)
             self.graph.plot_fit(time, fitted, method='dashed')
 
     def __plot_ccs_synapt(self, results):
@@ -143,7 +143,7 @@ class MainWindow(QMainWindow):
         fit_params  = np.asarray([slope, intercept, R, P, std_err])
 
         pandas_model = PandasModel(coeffs)
-        pandas_model.header_labels = ['A', 'mu', 'sigma']
+        pandas_model.header_labels = ['A', 'mu', 'sigma', 'off']
 
         ccs_model    = CcsModel(ccs_results)
         ccs_model.header_labels = ['ccs', 'ccs corr.', 'error']

@@ -58,9 +58,11 @@ class Overview(QFrame):
         self.dev        = "190"
         self.mz         = None
         self.charge     = "1"
-        self.ld         = "160.55"
+        self.ld         = "161.2"
         self.gas        = 'He'
         self.gaussian   = "1"
+        self.selecting  = False
+        self.selections = ""
     
     def __set_default_values_drift(self):
         self.h5file         = None
@@ -189,6 +191,8 @@ class Overview(QFrame):
         ld          = QLabel("Length drift tube")
         gas         = QLabel("Drift gas")
         gaussian    = QLabel("No. Gaussians")
+        select      = QLabel("Select Peaks")
+        selection   = QLabel("Provide selection")
 
         self.file_edit      = QLineEdit()
         self.browse         = QPushButton("Browse")
@@ -201,12 +205,15 @@ class Overview(QFrame):
         self.ld_edit        = QLineEdit()
         self.gas_edit       = QLineEdit()
         self.gaussian_edit  = QLineEdit()
+        self.select_cb      = QCheckBox()
+        self.select_edit    = QLineEdit()
 
         self.browse.setStyleSheet("""
             font-size: 12pt;
             min-height: 20px;
             min-width: 100px;
-        """) 
+        """)
+
         browse_group_lay.setContentsMargins(0,0,0,0)
         browse_group_lay.addWidget(self.file_edit)
         browse_group_lay.addWidget(self.browse)
@@ -219,10 +226,12 @@ class Overview(QFrame):
         self.ld_edit.textChanged.connect(self.__ld_value_changed)
         self.gas_edit.textChanged.connect(self.__gas_changed)
         self.gaussian_edit.textChanged.connect(self.__gaussian_changed)
+        self.select_cb.stateChanged.connect(self.__handle_select)
+        self.select_edit.textChanged.connect(self.__selection_changed)
 
         self.dev_edit.setText("190")
         self.charge_edit.setText("1")
-        self.ld_edit.setText("160.55")
+        self.ld_edit.setText("161.2")
         self.gas_edit.setText("He")
         self.gaussian_edit.setText("1")
 
@@ -252,6 +261,8 @@ class Overview(QFrame):
         form_layout.addRow(ld,       self.ld_edit)
         form_layout.addRow(gas,      self.gas_edit)
         form_layout.addRow(gaussian, self.gaussian_edit)
+        form_layout.addRow(select,   self.select_cb)
+        form_layout.addRow(selection, self.select_edit)
 
         button_run = QPushButton("Run")
         button_run.clicked.connect(self.__run_calculation)
@@ -497,6 +508,15 @@ class Overview(QFrame):
     def __ycol_changed(self, text):
         self.ycol = text
 
+    def __handle_select(self, state):
+        if state > 1:
+            self.selecting = True
+            return
+        self.selecting = False
+
+    def __selection_changed(self, text):
+        self.selections = text
+
     def __check_form_input(self):
         if self.project == 'synapt':
             self.__check_form_input_synapt()
@@ -506,6 +526,7 @@ class Overview(QFrame):
             self.__check_form_input_drift()
         elif self.project == 'ms':
             self.__check_form_input_ms()
+
 
     def __check_form_input_synapt(self):
         try:
@@ -548,6 +569,14 @@ class Overview(QFrame):
             self.charge     = float(self.charge)
             self.ld         = float(self.ld)
             self.gaussian   = float(self.gaussian)
+
+            if self.selecting:
+                if self.selections != "":
+                    self.selections = self.__convert2array(self.selections)
+                    if self.selections == 0:
+                        raise ValueError
+        except ValueError:
+            raise InvalidForm("Input for range is not valid")
 
         except:
             raise InvalidForm("Please provide a valid base directory")
@@ -608,7 +637,23 @@ class Overview(QFrame):
                 
         except Exception:
             raise InvalidForm("")
-                
+
+    def __convert2array(self, input):
+        numbers = input.split(',')
+        rgx     = re.compile(r"\d+-\d+")
+        rgxInt  = re.compile(r"\d+")
+
+        selected = []
+        for element in numbers:
+            if re.match(rgx, element):
+                peaks = element.split('-')
+                sub   = list(range(int(peaks[0]), int(peaks[1]) + 1, 1))
+                selected += sub
+            elif re.match(rgxInt, element):
+                peak = int(element)
+                selected.append(peak)
+        return selected
+
     def __run_calculation(self):
         try:
             self.__check_form_input()
@@ -622,15 +667,27 @@ class Overview(QFrame):
                 self.ccs_synapt_success.emit(imms_data, coeff, results)
 
             elif self.project == 'imob':
-                imms_data, coeff, results = imob.analysis_interface(
-                    self.h5file,
-                    float(self.dev),
-                    float(self.mz),
-                    float(self.charge),
-                    float(self.ld),
-                    self.gas
+                if not self.selecting:
+                    imms_data, coeff, results = imob.analysis_interface(
+                        self.h5file,
+                        float(self.dev),
+                        float(self.mz),
+                        float(self.charge),
+                        float(self.ld),
+                        self.gas,
+                        )
+                else:
+                    imms_data, coeff, results = imob.analysis_interface(
+                        self.h5file,
+                        float(self.dev),
+                        float(self.mz),
+                        float(self.charge),
+                        float(self.ld),
+                        self.gas,
+                        traces=self.selections
                     )
                 self.ccs_imob_success.emit(imms_data, coeff, results)
+
             elif self.project == 'drift':
                 data = drifttime.analysis_interface(
                     self.h5file,
