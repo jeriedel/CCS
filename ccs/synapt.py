@@ -64,14 +64,20 @@ def optimize_coefficients_gaussian(data, N, maxfev=100000):
 def get_data_of_imms_files(files, mass):
     """
     Get data of imms files based on mass provided.
-    Attention: Mass has to be preselected currently, so that it corresponds to the maximum
     """
     data = {}
+    # Select mass with maximum intensity in given uncertainty range
+    start, stop = mass - 0.25, mass + 0.25
     for key, file in files.items():
         df = pd.read_csv(file, header=None, sep=" ").round(2)
         df.columns = ['Mass', 'Time', 'Intensity', 'None']
         df = df.drop(['None'], axis=1).set_index('Mass')
-        select_mass = df.loc[(df.index == mass)]
+        masses = df.index
+        rows   = np.where(np.logical_and(masses > start, masses < stop))
+        subset = df.iloc[rows]['Intensity']
+        maxidx = subset.argmax()
+        tmass  = subset.index[maxidx]
+        select_mass = df.loc[(df.index == tmass)]
         data[key] =  select_mass
 
     return data
