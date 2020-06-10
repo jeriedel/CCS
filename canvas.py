@@ -6,8 +6,8 @@ import matplotlib.gridspec as gridspec
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.ticker import MultipleLocator
-import matplotlib.pyplot as plt
 from ccs.drifttime import get_sub_atd, get_sub_ms
+import pandas as pd
 
 gray                                = '#757575'
 mpl.rcParams['text.color']          = gray 
@@ -18,6 +18,8 @@ mpl.rcParams['ytick.color']         = gray
 mpl.rcParams['axes.edgecolor']      = gray
 
 class Canvas(QFrame):
+    calculated_ms_data = pyqtSignal(pd.Series, pd.Series, pd.Series)
+
     def __init__(self, project='ccs', *args, **kwargs):
         super(Canvas, self).__init__(*args, **kwargs)
 
@@ -177,6 +179,8 @@ class Canvas(QFrame):
         atd_plot.xaxis.set_ticks([])
         atd_plot.yaxis.set_ticks([])
         atd_plot.axis('off')
+
+        self.calculated_ms_data.emit(mass_data, acc, pd.Series(time[0]))
 
         for df in sub_ms:
             mass_spectrum.plot(df.index, df)

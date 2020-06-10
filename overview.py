@@ -10,7 +10,7 @@ import numpy as np
 import ccs.synapt as synapt
 import ccs.imob as imob
 import ccs.drifttime as drifttime
-from helper.fileloader import FileLoader, ImobFileLoader
+from helper.fileloader import FileLoader
 from helper.correction import  correction
 from error import InvalidForm, NotDirectory
 

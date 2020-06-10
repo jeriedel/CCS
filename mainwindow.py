@@ -40,6 +40,7 @@ class MainWindow(QMainWindow):
         ms         = QAction('&Visualize MS', self)
         export_plt = QAction('&Export Plot', self)
         export_tab = QAction('&Export Table', self)
+        export_ms  = QAction('&Export MS spectrum', self)
 
         # Add signals
         quit_app.triggered.connect(qApp.quit)
@@ -49,6 +50,7 @@ class MainWindow(QMainWindow):
         ms.triggered.connect(lambda : self.__handle_project_change('ms'))
         export_plt.triggered.connect(lambda: self.__export_plot())
         export_tab.triggered.connect(lambda: self.__export_table())
+        export_ms.triggered.connect(lambda: self.__export_ms())
 
         # Add menu tabs
         main_menu = self.menuBar()
@@ -63,6 +65,7 @@ class MainWindow(QMainWindow):
         project.addAction(ms)
         export.addAction(export_plt)
         export.addAction(export_tab)
+        export.addAction(export_ms)
 
     def __plot_results(self, imms_data, coeff, results):
         if self.project == 'synapt':
@@ -77,6 +80,7 @@ class MainWindow(QMainWindow):
             self.__populate_tables_imob(coeff, results)
     
     def __plot_results_drift(self, res):
+            self.graph.calculated_ms_data.connect(self.__store_ms_data)
             self.graph.clear_plot(method='drift')
             self.graph.plot_drift_time_scope(res)
         
@@ -312,3 +316,16 @@ class MainWindow(QMainWindow):
         except:
             print("Currently, there are no tables for plotting available.")
 
+    def __export_ms(self):
+        try:
+            dialog = ExportDialog(self, plot=False, data=self.data)
+            dialog.exec()
+        except:
+            QMessageBox.warning(self, "Warning", "Export window will open if Drift Time Scope analysis was performed", QMessageBox.Ok)
+
+    def __store_ms_data(self, msdata, atdx, atdy):
+        msx = np.asarray(msdata.index)
+        msy = np.asarray(msdata)
+        msdf = pd.DataFrame(data=np.column_stack((msx, msy)), columns=['m/z', 'Intensity'])
+        atddf = pd.DataFrame(data=np.column_stack((atdx, atdy)), columns=['ATDx', 'ATDy'])
+        self.data = msdf.join(atddf)

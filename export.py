@@ -1,26 +1,36 @@
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import  *
 import numpy as np
+import pandas as pd
 
 ERROR_MESSAGE = """The provided filename is not valid. Please select a new filename"""
 
 class ExportDialog(QDialog):
     def __init__(self, parent, plot=True, figure=None, data=None, *args, **kwargs):
         super(ExportDialog, self).__init__(parent, *args, **kwargs)
+        # called for plot
         if plot and figure is not None:
             self.plot = True
             self.figure = figure
             self.output = None
-            self.__render_ui_plot()
-        else:
+            self.__render_ui_single()
+        # called for table export
+        elif isinstance(data, tuple):
             self.plot       = False
             self.data       = data
             self.coeffFile  = None
             self.ccsFile    = None
             self.statsFile  = None
             self.__render_ui_tables()
+        # Called for drift time scope
+        elif isinstance(data, pd.DataFrame):
+            self.plot       = False
+            self.data       = data
+            self.output     = None
+            self.__render_ui_single()
 
-    def __render_ui_plot(self):
+
+    def __render_ui_single(self):
         self.setWindowTitle("Export Plot")
         mainLayout = QVBoxLayout(self)
         exportArea = QFrame()
@@ -39,11 +49,11 @@ class ExportDialog(QDialog):
 
         browse = QPushButton()
         browse.setText("Browse")
-        self.file   = QLineEdit()
+        self.file = QLineEdit()
         groupLayout.addWidget(self.file)
         groupLayout.addWidget(browse)
 
-        browse.clicked.connect(self.openFileDialog)
+        browse.clicked.connect(lambda: self.openFileDialog(key='plot'))
         self.file.textChanged.connect(self.outputFileChanged)
 
         quit = QPushButton("Quit")
@@ -101,6 +111,9 @@ class ExportDialog(QDialog):
         browseCoeff.clicked.connect(lambda: self.openFileDialog(key='table', to='coeff'))
         browseCCS.clicked.connect(lambda: self.openFileDialog(key='table', to='ccs'))
         browseStats.clicked.connect(lambda: self.openFileDialog(key='table', to='stats'))
+        self.coeffFileEdit.textChanged.connect(lambda text: self.tableFilesChanged(text, to='coeff'))
+        self.ccsFileEdit.textChanged.connect(lambda text: self.tableFilesChanged(text, to='ccs'))
+        self.statsFileEdit.textChanged.connect(lambda text: self.tableFilesChanged(text, to='stats'))
 
         layoutCoeff.addWidget(self.coeffFileEdit)
         layoutCoeff.addWidget(browseCoeff)
@@ -125,7 +138,24 @@ class ExportDialog(QDialog):
         mainLayout.addWidget(exportArea)
         mainLayout.addWidget(buttonArea)
 
-    def openFileDialog(self, key='plot', to='coff'):
+    def tableFilesChanged(self, text, to='coeff'):
+        if to == 'coeff':
+            if text == '':
+                self.coeffFile = None
+                return
+            self.coeffFile = text
+        elif to == 'ccs':
+            if text == '':
+                self.ccsFile= None
+                return
+            self.ccsFile = text
+        elif to == 'stats':
+            if text == '':
+                self.statsFile = None
+                return
+            self.statsFile = text
+
+    def openFileDialog(self, key='plot', to='coeff'):
         if key == 'plot':
             self.output, filter = QFileDialog.getSaveFileName(self, "Output File", QDir.homePath())
             if not self.output == '':
@@ -154,11 +184,14 @@ class ExportDialog(QDialog):
     def startExport(self):
         if self.plot:
             if self.output is not None:
-                self.figure.savefig(self.output)
-                self.close()
+                try:
+                    self.figure.savefig(self.output)
+                except:
+                    QMessageBox.warning(self, "Warning", "Provided file type is not supported. Must be .png, .pdf, .jpg, ...", QMessageBox.Ok)
+                    return;
             else:
                 QMessageBox.warning(self, "Form Error", ERROR_MESSAGE, QMessageBox.Ok)
-        else:
+        elif isinstance(self.data, tuple):
             coeff, ccs, stats = self.data
             if self.coeffFile is not None:
                 coeff.to_csv(self.coeffFile, sep='\t')
@@ -175,4 +208,10 @@ class ExportDialog(QDialog):
                 stats = np.reshape(stats, (-1, 3))
                 np.savetxt(self.statsFile, stats, header="R\tP\tstd. error", delimiter="\t")
 
-            self.close()
+        elif isinstance(self.data, pd.DataFrame):
+            if self.output is not None:
+                self.data.to_csv(self.output, na_rep='', sep='\t')
+            else:
+                QMessageBox.warning(self, "Form Error", ERROR_MESSAGE, QMessageBox.Ok)
+
+        self.close()
