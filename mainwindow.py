@@ -3,6 +3,7 @@ from PyQt5.QtCore import *
 from overview import Overview
 from canvas import Canvas
 from tables import TableResults
+from export import ExportDialog
 import ccs.synapt as synapt
 import ccs.imob as imob
 from models import PandasModel, CcsModel, FitModel
@@ -37,24 +38,31 @@ class MainWindow(QMainWindow):
         imob       = QAction('&Imob', self)
         drift      = QAction('&Drift Time Scan', self)
         ms         = QAction('&Visualize MS', self)
-        
+        export_plt = QAction('&Export Plot', self)
+        export_tab = QAction('&Export Table', self)
+
         # Add signals
         quit_app.triggered.connect(qApp.quit)
         synapt.triggered.connect(lambda: self.__handle_project_change('synapt'))
         imob.triggered.connect(lambda: self.__handle_project_change('imob'))
         drift.triggered.connect(lambda: self.__handle_project_change('drift'))
         ms.triggered.connect(lambda : self.__handle_project_change('ms'))
-        
+        export_plt.triggered.connect(lambda: self.__export_plot())
+        export_tab.triggered.connect(lambda: self.__export_table())
+
         # Add menu tabs
         main_menu = self.menuBar()
         ccs_menu  = main_menu.addMenu('&CSS')
         project   = main_menu.addMenu('&Project')
+        export    = main_menu.addMenu('&Export')
         # Add actions
         ccs_menu.addAction(quit_app)
         project.addAction(synapt)
         project.addAction(imob)
         project.addAction(drift)
         project.addAction(ms)
+        export.addAction(export_plt)
+        export.addAction(export_tab)
 
     def __plot_results(self, imms_data, coeff, results):
         if self.project == 'synapt':
@@ -288,3 +296,19 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         self.params.ms_success.connect(self.__plot_results_ms)
         self.show()
+
+    def __export_plot(self):
+        dialog = ExportDialog(self, figure=self.graph.figure, plot=True)
+        dialog.exec()
+
+    def __export_table(self):
+        try:
+            coeffs = self.table_area.coeffs_table.model().raw
+            ccs    = self.table_area.ccs_table.model().raw
+            stats  = self.table_area.fit_table.model().raw
+            tdata = (coeffs, ccs, stats)
+            dialog = ExportDialog(self, plot=False, data=tdata)
+            dialog.exec()
+        except:
+            print("Currently, there are no tables for plotting available.")
+

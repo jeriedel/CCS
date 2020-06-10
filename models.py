@@ -5,6 +5,7 @@ from PyQt5 import QtCore
 class PandasModel(QtCore.QAbstractTableModel):
     def __init__(self, data, parent=None):
          super(PandasModel, self).__init__()
+         self.raw   = data
          self._data = data.round(4)
          self.header_labels = [str(i+1) for i in range(data.shape[1])]
 
@@ -31,6 +32,7 @@ class ArrayModel(QtCore.QAbstractTableModel):
         if not isinstance(data, np.ndarray):
             raise Exception
         else:
+            self.raw   = data
             self._data = data.reshape((1, len(data)))
             self._data = np.around(self._data, 4)
             self.header_labels = [str(i+1) for i in range(self._data.shape[1])]
