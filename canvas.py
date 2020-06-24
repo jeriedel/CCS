@@ -16,6 +16,8 @@ mpl.rcParams['axes.labelcolor']     = gray
 mpl.rcParams['xtick.color']         = gray 
 mpl.rcParams['ytick.color']         = gray 
 mpl.rcParams['axes.edgecolor']      = gray
+mpl.rcParams['axes.xmargin'] = 0
+mpl.rcParams['axes.ymargin'] = 0
 
 class Canvas(QFrame):
     calculated_ms_data = pyqtSignal(pd.Series, pd.Series, pd.Series)
