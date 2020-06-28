@@ -164,7 +164,7 @@ class Canvas(QFrame):
 
         mass_spectrum, heat_plot, atd_plot = tuple(self.axes)
         
-        cmap = 'viridis'
+        cmap = 'Spectral'
         im = heat_plot.pcolormesh(mass, time, count, cmap=cmap, vmin=0, vmax=scale * absmax, label='Intensities')
         heat_plot.tick_params(labelright=True, labeltop=True, top=True, right=True, which='both')
         heat_plot.xaxis.set_minor_locator(MultipleLocator(25))
